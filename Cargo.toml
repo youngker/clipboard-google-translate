@@ -1,23 +1,23 @@
 [package]
 name = "clipboard-google-translate"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["YoungJoo Lee <youngker@gmail.com>"]
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-structopt = "0.3.2"
+structopt = "0.3.26"
 url = "*"
-hyper = "0.12.35"
+hyper = "0.12.36"
 clipboard = "0.5.0"
-regex = "1"
-serde = "1.0"
-serde_json = "1.0"
-serde_derive = "1.0"
+regex = "1.7.1"
+serde = "1.0.152"
+serde_json = "1.0.91"
+serde_derive = "1.0.152"
 glfw = "0.33.0"
 imgui = "0.2.1"
-imgui-opengl-renderer = "0.6.0"
+imgui-opengl-renderer = "0.6.1"
 gl = "*"
-log = "0.4.6"
+log = "0.4.17"
 env_logger = { version = "0.6.2", default-features = false, features = ["termcolor"] }
