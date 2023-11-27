@@ -21,7 +21,9 @@
         };
 
         devShell = with pkgs; mkShell {
-          buildInputs = [ cargo rustc rustfmt pre-commit rustPackages.clippy ];
+          buildInputs = [ cargo rustc rustfmt pre-commit rustPackages.clippy ]
+            ++ lib.optionals pkgs.stdenv.isDarwin
+            (with darwin.apple_sdk.frameworks; [ Carbon Cocoa Kernel libiconv ]);
           RUST_SRC_PATH = rustPlatform.rustLibSrc;
         };
 

@@ -2,58 +2,54 @@
 mod clipboard;
 
 use crate::gui::Popup;
-use gl;
-use glfw::{Action, Context, MouseButton};
-use imgui_opengl_renderer::Renderer;
+use imgui_glow_renderer::AutoRenderer;
+use std::io;
 use std::sync::mpsc::channel;
 use std::thread;
 use std::time::Duration;
-use std::{io, sync};
+
+use glow::HasContext;
+use glutin::{event_loop::EventLoop, WindowedContext};
+use std::time::Instant;
+const TITLE: &str = "Hello, imgui-rs!";
 
 pub struct Window {
-    pub handle: glfw::Window,
-    event: sync::mpsc::Receiver<(f64, glfw::WindowEvent)>,
-    glfw: glfw::Glfw,
+    pub window: WindowedContext<glutin::PossiblyCurrent>,
+    pub event_loop: EventLoop<()>,
     pub hidpi: f32,
 }
 
 impl Window {
     pub fn new(size: (u32, u32)) -> io::Result<Window> {
-        let mut glfw = glfw::init(glfw::FAIL_ON_ERRORS)
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
-
-        glfw.window_hint(glfw::WindowHint::ContextVersion(3, 3));
-        glfw.window_hint(glfw::WindowHint::OpenGlProfile(
-            glfw::OpenGlProfileHint::Core,
-        ));
-        glfw.window_hint(glfw::WindowHint::CocoaRetinaFramebuffer(true));
-        glfw.window_hint(glfw::WindowHint::ScaleToMonitor(true));
-        glfw.window_hint(glfw::WindowHint::OpenGlForwardCompat(true));
-        glfw.window_hint(glfw::WindowHint::TransparentFramebuffer(true));
-        glfw.window_hint(glfw::WindowHint::Floating(true));
-        glfw.window_hint(glfw::WindowHint::Visible(false));
-        glfw.window_hint(glfw::WindowHint::Decorated(false));
-
-        let (mut window, event) = glfw
-            .create_window(size.0, size.1, "clipboard-google-translate", glfw::WindowMode::Windowed)
-            .ok_or(io::Error::new(
-                io::ErrorKind::Other,
-                "glfw: error creating window",
-            ))?;
-        window.make_current();
-        window.set_all_polling(true);
-        gl::load_with(|symbol| window.get_proc_address(symbol) as *const _);
-
-        let hidpi = window.get_content_scale().0;
+        let event_loop = glutin::event_loop::EventLoop::new();
+        let window = glutin::window::WindowBuilder::new()
+            .with_title(TITLE)
+            .with_transparent(true)
+            .with_inner_size(glutin::dpi::LogicalSize::new(1024, 768));
+        let window = glutin::ContextBuilder::new()
+            .with_vsync(true)
+            .build_windowed(window, &event_loop)
+            .expect("could not create window");
+        let window = unsafe {
+            window
+                .make_current()
+                .expect("could not make window context current")
+        };
+        let hidpi = 2.0;
         Ok(Window {
-            handle: window,
-            event,
-            glfw,
+            window,
+            event_loop,
             hidpi,
         })
     }
 
-    pub fn run(&mut self, popup: &mut Popup, renderer: &Renderer) {
+    pub fn run(&self, popup: &mut Popup, renderer: &mut AutoRenderer) {
+        let Window {
+            window,
+            event_loop,
+            hidpi,
+            ..
+        } = self;
         let (tx, rx) = channel();
         let mut pressed = false;
         let mut cx: f32 = 0.0;
@@ -77,61 +73,66 @@ impl Window {
                 thread::sleep(Duration::from_millis(500));
             }
         });
-        while !self.handle.should_close() {
-            unsafe {
-                gl::Clear(gl::COLOR_BUFFER_BIT);
-            }
 
-            if let Ok(received) = rx.try_recv() {
-                popup.set_text(received);
-                self.resize(popup);
-                println!("=== {:?}", self.handle.get_pos());
-                let (x, y) = self.handle.get_pos();
-                self.handle.show();
-                self.handle.set_pos(x, y);
-            }
+        popup.frame(self.hidpi, renderer);
 
-            popup.frame(&mut self.handle, self.hidpi, renderer);
+        let mut last_frame = Instant::now();
+        event_loop.run(move |event, _, control_flow| {
+            match event {
+                glutin::event::Event::NewEvents(_) => {
+                    let now = Instant::now();
+                    popup.imgui_context
+                        .io_mut()
+                        .update_delta_time(now.duration_since(last_frame));
+                    last_frame = now;
+                }
+                glutin::event::Event::MainEventsCleared => {
+                    popup
+                        .winit_platform
+                        .prepare_frame(popup.imgui_context.io_mut(), self.window.window())
+                        .unwrap();
+                    self.window.window().request_redraw();
+                }
+                glutin::event::Event::RedrawRequested(_) => {
+                    // The renderer assumes you'll be clearing the buffer yourself
+                    unsafe { renderer.gl_context().clear(glow::COLOR_BUFFER_BIT) };
 
-            self.glfw.poll_events();
+                    let ui = popup.imgui_context.frame();
+                    ui.show_demo_window(&mut true);
 
-            for (_, event) in glfw::flush_messages(&self.event) {
-                match event {
-                    glfw::WindowEvent::MouseButton(btn, action, _) => {
-                        if btn == MouseButton::Button1 && action == Action::Press {
-                            pressed = true;
-                            cx = popup.context.io_mut().mouse_pos[0];
-                            cy = popup.context.io_mut().mouse_pos[1];
-                        } else {
-                            pressed = false;
-                        }
-                        if btn == MouseButton::Button2 && action == Action::Press {
-                            &self.handle.hide();
-                        }
-                    }
-                    glfw::WindowEvent::CursorPos(x, y) => {
-                        popup.context.io_mut().mouse_pos = [x as f32, y as f32];
-                    }
-                    glfw::WindowEvent::Scroll(_, v) => {
-                        popup.context.io_mut().mouse_wheel = v as f32;
-                    }
-                    _ => {}
+                    popup
+                        .winit_platform
+                        .prepare_render(ui, self.window.window());
+                    let draw_data = popup.imgui_context.render();
+
+                    // This is the only extra render step to add
+                    renderer.render(draw_data).expect("error rendering imgui");
+
+                    self.window.swap_buffers().unwrap();
+                }
+                glutin::event::Event::WindowEvent {
+                    event: glutin::event::WindowEvent::CloseRequested,
+                    ..
+                } => {
+                    *control_flow = glutin::event_loop::ControlFlow::Exit;
+                }
+                event => {
+                    popup.winit_platform.handle_event(
+                        popup.imgui_context.io_mut(),
+                        self.window.window(),
+                        &event,
+                    );
                 }
             }
-            if pressed {
-                let (x, y) = self.handle.get_cursor_pos();
-                let (a, b) = self.handle.get_pos();
-                self.handle.set_pos(a + x as i32 - cx as i32, b + y as i32 - cy as i32);
-            }
-            thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
-        }
+        });
     }
 
     pub fn resize(&mut self, popup: &mut Popup) {
-        popup.set_measure_text(self.hidpi);
-        self.handle.set_size(
-            (popup.width * self.hidpi) as i32,
-            (popup.height * self.hidpi) as i32,
-        );
+        println!("resize");
+        // popup.set_measure_text(self.hidpi);
+        // self.handle.set_size(
+        //     (popup.width * self.hidpi) as i32,
+        //     (popup.height * self.hidpi) as i32,
+        // );
     }
 }

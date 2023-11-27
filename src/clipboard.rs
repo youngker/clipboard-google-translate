@@ -35,12 +35,10 @@ impl ClipboardThread {
         let mut ctx: ClipboardContext = ClipboardContext::new().unwrap();
         self.set_text(ctx.get_contents().unwrap());
         let (tx, rx) = channel();
-        thread::spawn(move || {
-            loop {
-                let text = ctx.get_contents().unwrap();
-                tx.send(text).unwrap();
-                thread::sleep(Duration::from_millis(500));
-            }
+        thread::spawn(move || loop {
+            let text = ctx.get_contents().unwrap();
+            tx.send(text).unwrap();
+            thread::sleep(Duration::from_millis(500));
         });
         rx
     }
