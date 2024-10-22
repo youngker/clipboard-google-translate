@@ -1,4 +1,4 @@
-use clipboard::{ClipboardContext, ClipboardProvider};
+use copypasta::{ClipboardContext, ClipboardProvider};
 use std::sync::mpsc::{channel, Receiver};
 use std::thread;
 use std::time::Duration;
@@ -15,9 +15,11 @@ impl ClipboardThread {
         let text = String::new();
         ClipboardThread { text }
     }
+
     pub fn set_text(&mut self, text: String) {
         self.text = text;
     }
+
     pub fn request(&self) -> String {
         let mut client = client::HttpClient::new();
         let send_txt: String = self
@@ -31,6 +33,7 @@ impl ClipboardThread {
             .join(" ");
         client.request(client.make_url(&send_txt[..]))
     }
+
     pub fn start(&mut self) -> Receiver<String> {
         let mut ctx: ClipboardContext = ClipboardContext::new().unwrap();
         self.set_text(ctx.get_contents().unwrap());
