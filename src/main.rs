@@ -14,7 +14,7 @@ struct Args {
 fn main() {
     let args = Args::from_args();
 
-    if let Err(e) = ::transparent_popup::init(args.src, args.dst, args.width) {
+    if let Err(e) = ::clipboard_google_translate::init(args.src, args.dst, args.width) {
         fatal(format!("initialization error: {}", e));
     }
 }

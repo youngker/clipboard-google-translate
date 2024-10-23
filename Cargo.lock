@@ -1381,6 +1381,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "clipboard-google-translate"
+version = "0.2.0"
+dependencies = [
+ "bevy",
+ "copypasta",
+ "crossbeam-channel",
+ "env_logger",
+ "hyper",
+ "log",
+ "regex",
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "structopt",
+ "url",
+]
+
+[[package]]
 name = "clipboard-win"
 version = "3.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4286,24 +4304,6 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "wasm-bindgen",
-]
-
-[[package]]
-name = "transparent_popup"
-version = "0.1.0"
-dependencies = [
- "bevy",
- "copypasta",
- "crossbeam-channel",
- "env_logger",
- "hyper",
- "log",
- "regex",
- "serde",
- "serde_derive",
- "serde_json",
- "structopt",
- "url",
 ]
 
 [[package]]

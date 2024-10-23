@@ -2,7 +2,8 @@ mod clipboard;
 use bevy::prelude::*;
 #[cfg(target_os = "macos")]
 use bevy::window::CompositeAlphaMode;
-use bevy::winit::WinitSettings;
+use bevy::winit::{EventLoopProxy, WinitSettings};
+use bevy::winit::WakeUp;
 use bevy::color::palettes::css::GREEN_YELLOW;
 use crossbeam_channel::{bounded, Receiver};
 use std::thread;
@@ -26,8 +27,7 @@ pub fn start() {
         .insert_resource(WinitSettings::desktop_app())
         .insert_resource(ClearColor(Color::NONE))
         .add_systems(Startup, setup)
-        .add_systems(Update, (read_stream, spawn_text, toggle_resolution))
-        //        .add_systems(Update, fade_in_popup)
+        .add_systems(Update, (read_stream, spawn_text))
         .run();
 }
 
@@ -90,22 +90,19 @@ fn read_stream(receiver: Res<StreamReceiver>, mut events: EventWriter<StreamEven
 }
 
 fn spawn_text(
-    mut commands: Commands,
+    mut windows: Query<&mut Window>,
     mut query: Query<(&mut Text, &Popup)>,
     mut reader: EventReader<StreamEvent>,
+    event_loop_proxy: NonSend<EventLoopProxy<WakeUp>>,
 ) {
     for (mut text, name) in query.iter_mut() {
-        for (per_frame, event) in reader.read().enumerate() {
-            text.sections[0].value = format!("{}", event.0);
+        for (_per_frame, event) in reader.read().enumerate() {
+            println!("spawn_text");
+            text.sections[0].value = format!("{}:{}", name.0, event.0);
+            let mut window = windows.single_mut();
+            window.resolution.set(500.0, 100.0);
+            let _ = event_loop_proxy.send_event(WakeUp);
+            WinitSettings::desktop_app();
         }
     }
-}
-
-fn toggle_resolution(
-    keys: Res<ButtonInput<KeyCode>>,
-    mut windows: Query<&mut Window>,
-) {
-    let mut window = windows.single_mut();
-    println!("toggle resolution!");
-    window.resolution.set(500.0, 100.0);
 }

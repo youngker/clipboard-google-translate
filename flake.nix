@@ -1,32 +1,57 @@
 {
+  description = "clipboard-google-translate";
+
   inputs = {
-    naersk.url = "github:nix-community/naersk/master";
-    nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
-    utils.url = "github:numtide/flake-utils";
+    nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
+    flake-utils.url = "github:numtide/flake-utils";
   };
 
-  outputs = { self, nixpkgs, utils, naersk }:
-    utils.lib.eachDefaultSystem (system:
+  outputs =
+    { self
+    , nixpkgs
+    , flake-utils
+    , ...
+    }:
+    flake-utils.lib.eachDefaultSystem (
+      system:
       let
         pkgs = import nixpkgs { inherit system; };
-        naersk-lib = pkgs.callPackage naersk { };
       in
       {
-        defaultPackage = naersk-lib.buildPackage {
-          src = ./.;
-          nativeBuildInputs = with pkgs; [ pkg-config ];
-          buildInputs = with pkgs; [ cmake ]
-            ++ lib.optionals pkgs.stdenv.isDarwin
-            (with darwin.apple_sdk.frameworks; [ Carbon Cocoa Kernel ]);
-        };
-
         devShell = with pkgs; mkShell {
-          buildInputs = [ cargo rustc rustfmt pre-commit rustPackages.clippy ]
-            ++ lib.optionals pkgs.stdenv.isDarwin
+          buildInputs = [
+            cargo
+            rustc
+            rustfmt
+            pre-commit
+            rustPackages.clippy
+            pkg-config
+            alsa-lib
+            libudev-zero
+            xorg.libX11
+            xorg.libXcursor
+            xorg.libXi
+            libxkbcommon
+            xorg.libxcb
+          ]
+          ++ lib.optionals pkgs.stdenv.isDarwin
             (with darwin.apple_sdk.frameworks; [ Carbon Cocoa Kernel libiconv ]);
+          LD_LIBRARY_PATH = "$LD_LIBRARY_PATH:${
+              with pkgs;
+              pkgs.lib.makeLibraryPath [
+                xorg.libX11
+                xorg.libXcursor
+                xorg.libXi
+                libxkbcommon
+                xorg.libxcb
+                pkgs.vulkan-loader
+                pkgs.glfw
+              ]
+          }";
           RUST_SRC_PATH = rustPlatform.rustLibSrc;
         };
 
         formatter = nixpkgs.legacyPackages.${system}.nixpkgs-fmt;
-      });
+      }
+    );
 }
